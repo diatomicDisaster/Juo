@@ -12,7 +12,7 @@
             "stopOnEntry": false,
             "cwd": "${workspaceFolder}",
             "juliaEnv": "${command:activeJuliaEnvironment}",
-            "args": ["test.inp"]
+            "args": ["-i", "smalltest.inp"]
         }
     ]
 }
