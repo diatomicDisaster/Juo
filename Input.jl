@@ -43,5 +43,4 @@ function read_input()
   return (fin, fout)
 end
 
-
 end
