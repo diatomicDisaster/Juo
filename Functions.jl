@@ -2,13 +2,13 @@
 The Potentials module contains functional forms of the various potential energy curves 
 available.
 """
-module PotentialCurves
+module Potentials
 
-export mor_pot
+export morse
 
 """Functional form of the simple Morse potential energy curve.
     Arguments
-        rs  :: Vector{Float}
+        r  :: Float64
             The vector of internuclear distances at which to calculate the potential energy.
         a   :: Float64
             Coefficient that determines the width of the potential well.
@@ -20,12 +20,8 @@ export mor_pot
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function mor_pot(rs::Vector{Float64}; a::Float64=1.0, r_e::Float64=1.0, D_e::Float64=1.0)
-    V = Vector{Float64}(undef, size(rs, 1))
-    for (i, r) in enumerate(rs)
-        v[i] = D_e*(1 - exp(-a*(r - r_e)))^2
-    end
-    return v
+function morse(r::Float64; a::Float64=1.0, r_e::Float64=1.0, D_e::Float64=1.0, mu::Float64=1.0)
+    return D_e*(1 - exp(-a*(r - r_e)))^2
 end
 
 end

@@ -11,8 +11,7 @@
             "program": "${file}",
             "stopOnEntry": false,
             "cwd": "${workspaceFolder}",
-            "juliaEnv": "${command:activeJuliaEnvironment}",
-            "args": ["-i", "smalltest.inp"]
+            "juliaEnv": "${command:activeJuliaEnvironment}"
         }
     ]
 }

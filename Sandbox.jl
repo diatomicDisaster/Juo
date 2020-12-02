@@ -23,4 +23,25 @@ println("External vectorization")
 @time pot_grid = @. PotentialCurves.mor_pot(vib_grid_a; a=1.0, r_e=1.0, D_e=1.0)
 @time pot_grid = @. PotentialCurves.mor_pot(vib_grid_a; a=1.0, r_e=1.0, D_e=1.0)
 
+# global bounds = [0, 0]
+# global counter = 1
+# global mode = "under"
+# for (i, V) in enumerate(potential_grid)
+#     if V < potential_grid[length(potential_grid)]
+#         if mode == "under"
+#             global bounds[1] = i
+#             global mode = "over"
+#         else
+#             continue
+#         end
+#     else
+#         if mode == "over"
+#             global bounds[2] = i
+#             break
+#         else
+#             continue
+#         end
+#     end
+# end
+
 end
