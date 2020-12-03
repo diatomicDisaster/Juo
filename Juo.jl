@@ -1,49 +1,41 @@
 module Juo
+
 include("input.jl")
 include("functions.jl")
 include("schrödinger.jl")
+include("test.jl")
+
 using Plots, LinearAlgebra
 using BenchmarkTools
-#Read input file
-#(fIn, fOut) = ReadInput.read_input()
+
+intervals = [1.0, 0.75, 0.5, 0.25, 0.1, 0.075, 0.05, 0.025, 0.01]
+diffs_list = SchrodingerTest.test_vibrational.(intervals)
+for v in [1, 6, 11]
+    plot!(intervals, abs.([diffs_list[i][v] for i=1:length(intervals)]), yaxis=:log, xaxis=:log)
+end
+savefig("vibtest.png")
 
 #Define grid
-rmin = 0.1
-rmax = 10.1
-dr = 0.01
+rmin = -10
+rmax = 10
+dr = 0.1
+thresh = 15.
 
-_vibrational_grid = collect(rmin:dr:rmax)
-npoints = length(_vibrational_grid)
+vibrational_grid = collect(rmin:dr:rmax)
+npoints = length(vibrational_grid)
 println("No. initial grid points: $npoints")
-_potential_grid = Potentials.morse.(_vibrational_grid; 
-    D_e=0.1743608,
-    r_e=1.401420894,
-    mu= 918.5717371,
-    a=1.440558
-)
-areless = isless.(_potential_grid, 0.173)
-vibrational_grid = _vibrational_grid[areless]
-potential_grid = _potential_grid[areless]
-ngoodpoints = length(vibrational_grid)
+potential_grid = Potentials.qho.(vibrational_grid)
+
+(vibrational_eigen, vibrational_hamiltonian) = Vibrational.sincdvr(potential_grid=potential_grid, interval=dr, threshold=thresh, mass=1.0)
+ngoodpoints = length(vibrational_eigen.values)
 println("No. retained grid points: $ngoodpoints")
-
-potential_matrix = Diagonal(potential_grid)
-kinetic_matrix = Vibrational.sinc_dvr_kinetic(vibrational_grid, dr, 918.5717371)
-hamiltonian_matrix = potential_matrix + kinetic_matrix
-vibrational_eigens = eigen(hamiltonian_matrix)
-
-# println("Eigenvalues and Potentials:")
-# for i =1:length(vibrational_grid)
-#     println("E$i = ", vibrational_eigens.values[i])
-#     println("v = ", findmax(vibrational_eigens.vectors[:, i]))
-# end
 
 plot(vibrational_grid, potential_grid)
 savefig("potential.png")
 
-heatmap(1:ngoodpoints, 1:ngoodpoints, hamiltonian_matrix)
+heatmap(1:ngoodpoints, 1:ngoodpoints, vibrational_hamiltonian)
 savefig("hamiltonian.png")
 
-heatmap(1:ngoodpoints, 1:ngoodpoints, vibrational_eigens.vectors)
+heatmap(1:ngoodpoints, 1:show_levels, transpose(vibrational_eigen.vectors[:,1:show_levels].^2))
 savefig("eigenvectors.png")
 end

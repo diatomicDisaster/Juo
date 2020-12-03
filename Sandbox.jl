@@ -44,4 +44,11 @@ println("External vectorization")
 #     end
 # end
 
+# _potential_grid = Potentials.morse.(_vibrational_grid; 
+#     D_e=0.1743608,
+#     r_e=1.401420894,
+#     mu=918.5717371,
+#     a=1.440558
+# )
+
 end
