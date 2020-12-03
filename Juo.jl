@@ -19,7 +19,8 @@ savefig("vibtest.png")
 rmin = -10
 rmax = 10
 dr = 0.1
-thresh = 15.
+thresh = 50.
+show_levels = 30
 
 vibrational_grid = collect(rmin:dr:rmax)
 npoints = length(vibrational_grid)
