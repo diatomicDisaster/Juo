@@ -60,7 +60,7 @@ end
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function morse_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::AbstractVector{Float64}=Float64[])
+function morse_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::Array{Float64, 1}=Float64[])
     y=1 - exp(-a*(r - r_e))
     V = D_e*y^2
     if isempty(expansion_parameters) == false
@@ -91,7 +91,7 @@ end
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function morse_damp_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, damp::Float64=0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::AbstractVector{Float64}=Float64[])
+function morse_damp_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, damp::Float64=0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::Array{Float64, 1}=Float64[])
     y=1 - exp(-a*(r - r_e))
     V_long = D_e*y^2
     V_damp=exp(-damp*(r-r_e))
@@ -122,7 +122,7 @@ end
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function morse_modified(r::Float64; r_e::Float64=1.0, D_e::Float64=1.0, V_0::Float64=1.0, expansion_parameters::AbstractVector{Float64}=Float64[])
+function morse_modified(r::Float64; r_e::Float64=1.0, D_e::Float64=1.0, V_0::Float64=1.0, expansion_parameters::Array{Float64, 1}=Float64[])
     z=(r-r_e)/(r+r_e)
     Denominator=sum(expansion_parameters)
     Numerator=0

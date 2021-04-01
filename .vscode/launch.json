@@ -7,6 +7,15 @@
         {
             "type": "julia",
             "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/Juo.jl",
+            "stopOnEntry": false,
+            "cwd": "${workspaceFolder}",
+            "juliaEnv": "${command:activeJuliaEnvironment}"
+        },
+        {
+            "type": "julia",
+            "request": "launch",
             "name": "Run active Julia file",
             "program": "${file}",
             "stopOnEntry": false,
