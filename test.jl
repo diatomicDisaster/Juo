@@ -1,7 +1,7 @@
 module SchrodingerTest
 
-include("functions.jl")
-include("schrödinger.jl")
+include("Functions.jl")
+include("Schrödinger.jl")
 
 using Plots, LinearAlgebra
 using BenchmarkTools
@@ -32,12 +32,12 @@ function test_vibrational()
     println("No. retained grid points: $ngoodpoints")
 
     plot(vibrational_grid, potential_grid)
-    savefig("potential.png")
+    savefig(joinpath("images", "potential.png"))
 
     heatmap(1:ngoodpoints, 1:ngoodpoints, vibrational_hamiltonian)
-    savefig("hamiltonian.png")
+    savefig(joinpath("images", "hamiltonian.png"))
 
     heatmap(1:ngoodpoints, 1:show_levels, transpose(vibrational_eigen.vectors[:,1:show_levels].^2))
-    savefig("eigenvectors.png")
+    savefig(joinpath("images", "eigenvectors.png"))
 end
 end

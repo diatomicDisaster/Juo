@@ -62,15 +62,26 @@ module Rotational
 using LinearAlgebra
 using SparseArrays
 
-function raising_operator(;
-    Jmax :: Float64 = 0.0
+function raising_operator(
+    Jmax :: Float64
     )
-    operator = sparse([1], [1], [0.])
-    for ang_mom = 1:Jmax
-        block = spdiagm(1 => [(ang_mom*(ang_mom + 1) - ang_mom_proj*(ang_mom_proj + 1))^.5 for ang_mom_proj=-ang_mom:ang_mom-1])
-        operator = blockdiag(operator, block)
-    end
-    return operator
+    nJ = floor(Int64, Jmax)
+    ndimensions = (nJ + 1)^2
+    rows = Int64[i for i=2:ndimensions]
+    cols = Int64[i for i=1:ndimensions-1]
+    vals = Float64[(J*(J + 1) - M*(M + 1))^.5 for J=(Jmax-nJ):Jmax for M=-J:J if M < Jmax]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function lowering_operator(
+    Jmax :: Float64
+    )
+    nJ = floor(Int64, Jmax)
+    ndimensions = (nJ + 1)^2
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=2:ndimensions+1]
+    vals = Float64[(J*(J + 1) - M*(M - 1))^.5 for J=(Jmax-nJ)+1:Jmax for M=-J:J]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
 function integrate(bra, ket, interval)
