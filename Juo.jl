@@ -1,8 +1,8 @@
 module Juo
-using BenchmarkTools
-include("input.jl")
-include("functions.jl")
-include("schrödinger.jl")
+
+include("Input.jl")
+include("Functions.jl")
+include("Schrödinger.jl")
 include("test.jl")
 
 #SchrodingerTest.test_vibrational()

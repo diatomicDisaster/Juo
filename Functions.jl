@@ -60,12 +60,12 @@ end
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function morse_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::Array{Float64, 1}=Float64[])
-    y=1 - exp(-a*(r - r_e))
-    V = D_e*y^2
+function morse_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::AbstractVector{Float64}=Float64[])
+    y = 1 - exp(-a*(r - r_e))
+    V = D_e * y^2
     if isempty(expansion_parameters) == false
-        for( i, k) in enumerate(expansion_parameters)
-            V=V+k*y^(i+3)
+        for (i, k) in enumerate(expansion_parameters)
+            V += k * y^(i + 3)
         end
     end
     return V
@@ -91,19 +91,18 @@ end
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function morse_damp_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, damp::Float64=0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::Array{Float64, 1}=Float64[])
-    y=1 - exp(-a*(r - r_e))
-    V_long = D_e*y^2
-    V_damp=exp(-damp*(r-r_e))
-    z=(r-r_e)/(r+r_e)
-    V=0
+function morse_damp_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, damp::Float64=0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::AbstractVector{Float64}=Float64[])
+    y = 1. - exp(-a*(r - r_e))
+    V_long = D_e * y^2
+    V_damp = exp(-damp*(r - r_e))
+    z = (r - r_e)/(r + r_e)
+    V = 0.
     if isempty(expansion_parameters) == false
-        for( i, k) in enumerate(expansion_parameters)
-            V=V+k*z^(i+2)
+        for (i, k) in enumerate(expansion_parameters)
+            V += k * z^(i + 2)
         end
     end
-    V=V_0+V*V_damp+V_long
-    return V
+    return V_0 + V * V_damp + V_long
 end
 
 """ Functional form of the Modified Morse potential energy curve with polynomial expansion parameters
@@ -122,17 +121,14 @@ end
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function morse_modified(r::Float64; r_e::Float64=1.0, D_e::Float64=1.0, V_0::Float64=1.0, expansion_parameters::Array{Float64, 1}=Float64[])
-    z=(r-r_e)/(r+r_e)
-    Denominator=sum(expansion_parameters)
-    Numerator=0
+function morse_modified(r::Float64; r_e::Float64=1.0, D_e::Float64=1.0, V_0::Float64=1.0, expansion_parameters::AbstractVector{Float64}=Float64[])
+    numerator = 0.
     if isempty(expansion_parameters) == false
-        for( i, k) in enumerate(expansion_parameters)
-            Numerator=Numerator+k*z^(i+1)
+        for (i, k) in enumerate(expansion_parameters)
+            numerator += k * ((r - r_e) / (r + r_e))^(i + 1)
         end
     end
-    V=V_0+D_e*(1-exp(-Numerator))^2/(1-exp(-Denominator))^2
-    return V
+    return V_0 + D_e*(1 - exp(-numerator))^2 / (1 - exp(-sum(expansion_parameters)))^2
 end
 
 end

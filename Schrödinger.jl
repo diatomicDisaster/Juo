@@ -73,4 +73,8 @@ function raising_operator(;
     return operator
 end
 
+function integrate(bra, ket, interval)
+    integrand = sum(interval * (bra + ket)/2)
+    return integrand
+end
 end
