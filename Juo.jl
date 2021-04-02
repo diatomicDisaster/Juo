@@ -6,6 +6,5 @@ include("Input.jl")
 include("Functions.jl")
 include("Schrödinger.jl")
 include("test.jl")
-println("Working")
 
 end

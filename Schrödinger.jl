@@ -66,10 +66,18 @@ function raising_operator(
     Jmax :: Float64
     )
     nJ = floor(Int64, Jmax)
-    ndimensions = (nJ + 1)^2
+    if mod(2*Jmax, 2) == 0
+        ndimensions = (nJ + 1)^2
+        Jmin = .0
+    else
+        ndimensions = nJ*(nJ + 3) + 2
+        Jmin = .5
+    end
     rows = Int64[i for i=2:ndimensions]
     cols = Int64[i for i=1:ndimensions-1]
-    vals = Float64[(J*(J + 1) - M*(M + 1))^.5 for J=(Jmax-nJ):Jmax for M=-J:J if M < Jmax]
+    vals = Float64[
+        (J*(J + 1) - M*(M + 1))^.5 for J=Jmin:Jmax for M=-J:J if M < Jmax
+        ]
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
@@ -77,11 +85,130 @@ function lowering_operator(
     Jmax :: Float64
     )
     nJ = floor(Int64, Jmax)
-    ndimensions = (nJ + 1)^2
-    rows = Int64[i for i=1:ndimensions]
-    cols = Int64[i for i=2:ndimensions+1]
-    vals = Float64[(J*(J + 1) - M*(M - 1))^.5 for J=(Jmax-nJ)+1:Jmax for M=-J:J]
+    if mod(2*Jmax, 2) == 0
+        ndimensions = (nJ + 1)^2
+        Jmin = .0
+    else
+        ndimensions = nJ*(nJ + 3) + 2
+        Jmin = .5
+    end
+    rows = Int64[i for i=1:ndimensions-1]
+    cols = Int64[i for i=2:ndimensions]
+    vals = Float64[
+        (J*(J + 1) - M*(M - 1))^.5 for J=Jmin:Jmax for M=-J:J if (J != Jmin || M !=-J)
+        ]
     return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function momentum_operator(
+    Jmax :: Float64
+    )
+    nJ = floor(Int64, Jmax)
+    if mod(2*Jmax, 2) == 0
+        ndimensions = (nJ + 1)^2
+        Jmin = .0
+    else
+        ndimensions = nJ*(nJ + 3) + 2
+        Jmin = .5
+    end
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=1:ndimensions]
+    vals = Float64[
+        J*(J + 1) for J=Jmin:Jmax for M=-J:J
+    ]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function momentum_projection_operator(
+    Jmax :: Float64
+    )
+    nJ = floor(Int64, Jmax)
+    if mod(2*Jmax, 2) == 0
+        ndimensions = (nJ + 1)^2
+        Jmin = .0
+    else
+        ndimensions = nJ*(nJ + 3) + 2
+        Jmin = .5
+    end
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=1:ndimensions]
+    vals = Float64[
+        M for J=(Jmax - nJ):Jmax for M=-J:J
+    ]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+
+function spin_raising_operator(
+    spin :: Float64
+    )
+    ndimensions = 2*spin + 1
+    rows = Int64[i for i=2:ndimensions]
+    cols = Int64[i for i=1:ndimensions-1]
+    vals = Float64[
+        (spin*(spin + 1) - M*(M + 1))^.5 for M=-spin:spin if M < spin
+        ]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function spin_lowering_operator(
+    spin :: Float64
+    )
+    ndimensions = 2*spin + 1
+    rows = Int64[i for i=2:ndimensions]
+    cols = Int64[i for i=1:ndimensions-1]
+    vals = Float64[
+        (spin*(spin + 1) - M*(M - 1))^.5 for M=-spin:spin if M < spin
+        ]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function spin_operator(
+    spin :: Float64
+    )
+    ndimensions = 2*spin + 1
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=1:ndimensions]
+    vals = Float64[spin*(spin + 1) for M=-spin:spin]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function spin_projection_operator(
+    spin :: Float64
+    )
+    ndimensions = 2*spin + 1
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=1:ndimensions]
+    vals = Float64[M for M=-spin:spin]
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function hamiltonian(
+    Jmax :: Float64,
+    S    :: Float64,
+    mass :: Float64,
+    r    :: Float64
+    )
+
+    nJ = floor(Int64, Jmax)
+    if mod(2*Jmax, 2) == 0
+        ndimensions = (nJ + 1)^2
+    else
+        ndimensions = nJ*(nJ + 3) + 2
+    end
+    
+    identity = Matrix{Float64}(1.0I, (Int64(2*S + 1), Int64(2*S + 1)))
+    J2 = kron(momentum_operator(Jmax), identity)
+    Jz = kron(momentum_projection_operator(Jmax), identity)
+
+    identity = Matrix{Float64}(I, (ndimensions, ndimensions))
+    S2 = kron(identity, spin_operator(S))
+    Sz = kron(identity, spin_projection_operator(S))
+
+    JpSm = kron(raising_operator(Jmax), spin_lowering_operator(S))
+    JmSp = kron(lowering_operator(Jmax), spin_raising_operator(S))
+    
+    return ((J2 - Jz^2) + (S2 - Sz^2) + (JpSm + JmSp))/(2*mass*r^2)
 end
 
 function integrate(bra, ket, interval)
