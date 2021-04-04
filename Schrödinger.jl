@@ -19,7 +19,7 @@ function kinetic_operator(npoints::Int, interval::Float64)
     return Symmetric(operator)
 end
 
-"""Calculate eigenvectors and eigenvalues of the sinc-DVR Hamiltonian for a grid of 
+"""Calculates eigenvectors and eigenvalues of the sinc-DVR Hamiltonian for a grid of 
 potential energy values.
     Arguments
         potential_grid :: AbstractVector{Float64}
@@ -63,9 +63,21 @@ using LinearAlgebra
 using SparseArrays
 using DataStructures
 
-
+"""
+Builds the raising operator matrix for the basis of angular momentum quantum numbers provided.
+    Arguments
+        Jlist :: Array{Float64, 1}
+            List of angular moment quantum numbers to build the matrix for, can be non-sequential.
+        ndimensions :: Int64
+            The dimension of the rotational basis. For a complete set of rotational quantum 
+            numbers, this is equal to (J_max + 1)^2 if J is integer, or Jmax(Jmax + 3) + 2 
+            if J is half-integer.
+    Returns
+        SparseArrays.AbstractSparseMatrixCSC{Float64, 2}
+            CSC sparse matrix representing the raising operator for the rotational basis.
+"""
 function raising_operator(
-    Jlist :: Vector{Float64},
+    Jlist :: Array{Float64, 1},
     ndimensions :: Int64
     )
     last = Jlist[length(Jlist)]
@@ -96,6 +108,19 @@ function raising_operator(
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
+"""
+Builds the lowering operator matrix for the basis of angular momentum quantum numbers provided.
+    Arguments
+        Jlist :: Array{Float64, 1}
+            List of angular moment quantum numbers to build the matrix for, can be non-sequential.
+        ndimensions :: Int64
+            The dimension of the rotational basis. For a complete set of rotational quantum 
+            numbers, this is equal to (J_max + 1)^2 if J is integer, or Jmax(Jmax + 3) + 2 
+            if J is half-integer.
+    Returns
+        SparseArrays.AbstractSparseMatrixCSC{Float64, 2}
+            CSC sparse matrix representing the lowering operator for the rotational basis.
+"""
 function lowering_operator(
     Jlist :: Vector{Float64},
     ndimensions :: Int64
@@ -111,7 +136,7 @@ function lowering_operator(
     end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
-
+#
 function lowering_operator(
     J :: Float64,
     ndimensions :: Int64
@@ -126,6 +151,20 @@ function lowering_operator(
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
+
+"""
+Builds the squared momentum operator matrix for the basis of angular momentum quantum numbers provided.
+    Arguments
+        Jlist :: Array{Float64, 1}
+            List of angular moment quantum numbers to build the matrix for, can be non-sequential.
+        ndimensions :: Int64
+            The dimension of the rotational basis. For a complete set of rotational quantum 
+            numbers, this is equal to (J_max + 1)^2 if J is integer, or Jmax(Jmax + 3) + 2 
+            if J is half-integer.
+    Returns
+        SparseArrays.AbstractSparseMatrixCSC{Float64, 2}
+            CSC sparse matrix representing the squared momentum operator for the rotational basis.
+"""
 function momentum_operator(
     Jlist :: Vector{Float64},
     ndimensions :: Int64
@@ -158,6 +197,20 @@ function momentum_operator(
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
+
+"""
+Builds the momentum projection operator matrix for the basis of angular momentum quantum numbers provided.
+    Arguments
+        Jlist :: Array{Float64, 1}
+            List of angular moment quantum numbers to build the matrix for, can be non-sequential.
+        ndimensions :: Int64
+            The dimension of the rotational basis. For a complete set of rotational quantum 
+            numbers, this is equal to (J_max + 1)^2 if J is integer, or Jmax(Jmax + 3) + 2 
+            if J is half-integer.
+    Returns
+        AbstractSparseMatrixCSC{Float64, 2}
+            CSC sparse matrix representing the momentum projection operator for the rotational basis.
+"""
 function momentum_projection_operator(
     Jlist :: Vector{Float64},
     ndimensions :: Int64
@@ -192,8 +245,13 @@ function momentum_projection_operator(
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
+"""
+Counts the number of dimensions, equivalent to the sum of (2J + 1), for a specified list of
+angular momentum quantum numbers. For a complete series of quantum numbers up to Jmax, this
+summation can be evaluated analytically.
+"""
 function _countdimensions(
-    Jlist :: Vector
+    Jlist :: Array{Number, 1}
 )
     ndimensions = 0
     for J in Jlist
@@ -203,7 +261,7 @@ function _countdimensions(
 end
 
 function _countdimensions(
-    Jmax :: Float64
+    Jmax :: Number
 )
     nJ = floor(Int64, Jmax)
     if mod(2*Jmax, 2) == 0
@@ -213,9 +271,24 @@ function _countdimensions(
     end
 end
 
-
+"""
+Builds the rigid-rotor Hamiltonian for the specified list of angular momentum quantum numbers,
+and given value of total spin angular momentum.
+    Arguments
+        Jlist :: Array{Float64, 1}
+            List of angular moment quantum numbers to build the matrix for, can be non-sequential.
+        spin :: Float64
+            Total spin angular momentum for the system.
+        mass :: Float64
+            Reduced mass of the molecule.
+        r :: Float64
+            Rigid rotor length (internuclear distance).
+    Returns
+        SparseArrays.AbstractSparseMatrixCSC{Float64, 2}
+            CSC sparse matrix representing the momentum projection operator for the rotational basis.
+"""
 function hamiltonian(
-    Jlist :: Vector{Float64},
+    Jlist :: Array{Float64, 1},
     spin  :: Float64,
     mass  :: Float64,
     r     :: Float64
