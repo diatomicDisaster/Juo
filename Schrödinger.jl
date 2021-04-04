@@ -61,152 +61,179 @@ module Rotational
 
 using LinearAlgebra
 using SparseArrays
+using DataStructures
+
 
 function raising_operator(
-    Jmax :: Float64
+    Jlist :: Vector{Float64},
+    ndimensions :: Int64
     )
-    nJ = floor(Int64, Jmax)
-    if mod(2*Jmax, 2) == 0
-        ndimensions = (nJ + 1)^2
-        Jmin = .0
-    else
-        ndimensions = nJ*(nJ + 3) + 2
-        Jmin = .5
-    end
+    last = Jlist[length(Jlist)]
     rows = Int64[i for i=2:ndimensions]
     cols = Int64[i for i=1:ndimensions-1]
-    vals = Float64[
-        (J*(J + 1) - M*(M + 1))^.5 for J=Jmin:Jmax for M=-J:J if M < Jmax
-        ]
+    vals = Array{Float64, 1}(undef, ndimensions-1)
+    i = 1
+    for J in Jlist
+        for M = -J:J-1
+            vals[i] = (J*(J + 1) - M*(M + 1))^.5
+            i += 1
+        end
+    end
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function raising_operator(
+    J :: Float64,
+    ndimensions :: Int64
+    )
+    rows = Int64[i for i=2:ndimensions]
+    cols = Int64[i for i=1:ndimensions-1]
+    vals = Array{Float64, 1}(undef, ndimensions-1)
+    i = 1
+    for M = -J:J-1
+        vals[i] = (J*(J + 1) - M*(M + 1))^.5
+    end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
 function lowering_operator(
-    Jmax :: Float64
+    Jlist :: Vector{Float64},
+    ndimensions :: Int64
     )
-    nJ = floor(Int64, Jmax)
-    if mod(2*Jmax, 2) == 0
-        ndimensions = (nJ + 1)^2
-        Jmin = .0
-    else
-        ndimensions = nJ*(nJ + 3) + 2
-        Jmin = .5
-    end
     rows = Int64[i for i=1:ndimensions-1]
     cols = Int64[i for i=2:ndimensions]
-    vals = Float64[
-        (J*(J + 1) - M*(M - 1))^.5 for J=Jmin:Jmax for M=-J:J if (J != Jmin || M !=-J)
-        ]
+    vals = Array{Float64, 1}(undef, ndimensions-1)
+    i = 0
+    for J in Jlist
+        for M = 1-J:J
+            vals[i] = (J*(J + 1) - M*(M - 1))^.5
+        end
+    end
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function lowering_operator(
+    J :: Float64,
+    ndimensions :: Int64
+    )
+    rows = Int64[i for i=2:ndimensions]
+    cols = Int64[i for i=1:ndimensions-1]
+    vals = Array{Float64, 1}(undef, ndimensions-1)
+    i = 0
+    for M = 1-J:J
+        vals[i] = (J*(J + 1) - M*(M - 1))^.5
+    end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
 function momentum_operator(
-    Jmax :: Float64
+    Jlist :: Vector{Float64},
+    ndimensions :: Int64
     )
-    nJ = floor(Int64, Jmax)
-    if mod(2*Jmax, 2) == 0
-        ndimensions = (nJ + 1)^2
-        Jmin = .0
-    else
-        ndimensions = nJ*(nJ + 3) + 2
-        Jmin = .5
-    end
     rows = Int64[i for i=1:ndimensions]
     cols = Int64[i for i=1:ndimensions]
-    vals = Float64[
-        J*(J + 1) for J=Jmin:Jmax for M=-J:J
-    ]
+    vals = Array{Float64, 1}(undef, ndimensions)
+    i = 1
+    for J in Jlist
+        for M = -J:J
+            vals[i] = J*(J + 1)
+            i += 1
+        end
+    end
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function momentum_operator(
+    J :: Float64,
+    ndimensions :: Int64
+    )
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=1:ndimensions]
+    vals = Array{Float64, 1}(undef, ndimensions)
+    i = 1
+    for M = -J:J
+        vals[i] = J*(J + 1)
+        i += 1
+    end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
 function momentum_projection_operator(
-    Jmax :: Float64
+    Jlist :: Vector{Float64},
+    ndimensions :: Int64
     )
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=1:ndimensions]
+    vals = Array{Float64, 1}(undef, ndimensions)
+    i = 1
+    for J in Jlist
+        for M = -J:J
+            if i != ndimensions
+                vals[i] = M
+                i += 1
+            end
+        end
+    end
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function momentum_projection_operator(
+    J :: Float64,
+    ndimensions :: Int64
+    )
+    rows = Int64[i for i=1:ndimensions]
+    cols = Int64[i for i=1:ndimensions]
+    vals = Array{Float64, 1}(undef, ndimensions)
+    i = 1
+    for M = -J:J
+        vals[i] = M
+        i += 1
+    end
+    return sparse(rows, cols, vals, ndimensions, ndimensions)
+end
+
+function _countdimensions(
+    Jlist :: Vector
+)
+    ndimensions = 0
+    for J in Jlist
+        ndimensions += floor(Int64, 2*J + 1)
+    end
+    return ndimensions
+end
+
+function _countdimensions(
+    Jmax :: Float64
+)
     nJ = floor(Int64, Jmax)
     if mod(2*Jmax, 2) == 0
-        ndimensions = (nJ + 1)^2
-        Jmin = .0
+        return (nJ + 1)^2
     else
-        ndimensions = nJ*(nJ + 3) + 2
-        Jmin = .5
+        return nJ*(nJ + 3) + 2
     end
-    rows = Int64[i for i=1:ndimensions]
-    cols = Int64[i for i=1:ndimensions]
-    vals = Float64[
-        M for J=(Jmax - nJ):Jmax for M=-J:J
-    ]
-    return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
-
-function spin_raising_operator(
-    spin :: Float64
-    )
-    ndimensions = 2*spin + 1
-    rows = Int64[i for i=2:ndimensions]
-    cols = Int64[i for i=1:ndimensions-1]
-    vals = Float64[
-        (spin*(spin + 1) - M*(M + 1))^.5 for M=-spin:spin if M < spin
-        ]
-    return sparse(rows, cols, vals, ndimensions, ndimensions)
-end
-
-function spin_lowering_operator(
-    spin :: Float64
-    )
-    ndimensions = 2*spin + 1
-    rows = Int64[i for i=2:ndimensions]
-    cols = Int64[i for i=1:ndimensions-1]
-    vals = Float64[
-        (spin*(spin + 1) - M*(M - 1))^.5 for M=-spin:spin if M < spin
-        ]
-    return sparse(rows, cols, vals, ndimensions, ndimensions)
-end
-
-function spin_operator(
-    spin :: Float64
-    )
-    ndimensions = 2*spin + 1
-    rows = Int64[i for i=1:ndimensions]
-    cols = Int64[i for i=1:ndimensions]
-    vals = Float64[spin*(spin + 1) for M=-spin:spin]
-    return sparse(rows, cols, vals, ndimensions, ndimensions)
-end
-
-function spin_projection_operator(
-    spin :: Float64
-    )
-    ndimensions = 2*spin + 1
-    rows = Int64[i for i=1:ndimensions]
-    cols = Int64[i for i=1:ndimensions]
-    vals = Float64[M for M=-spin:spin]
-    return sparse(rows, cols, vals, ndimensions, ndimensions)
-end
 
 function hamiltonian(
-    Jmax :: Float64,
-    S    :: Float64,
-    mass :: Float64,
-    r    :: Float64
+    Jlist :: Vector{Float64},
+    spin  :: Float64,
+    mass  :: Float64,
+    r     :: Float64
     )
 
-    nJ = floor(Int64, Jmax)
-    if mod(2*Jmax, 2) == 0
-        ndimensions = (nJ + 1)^2
-    else
-        ndimensions = nJ*(nJ + 3) + 2
-    end
+    ndimensions = _countdimensions(Jlist)
+    ndimensions_spin = floor(Int64, 2*spin + 1)
     
-    identity = Matrix{Float64}(1.0I, (Int64(2*S + 1), Int64(2*S + 1)))
-    J2 = kron(momentum_operator(Jmax), identity)
-    Jz = kron(momentum_projection_operator(Jmax), identity)
+    identity = Matrix{Float64}(1.0I, (ndimensions_spin, ndimensions_spin))
+    J2 = kron(momentum_operator(Jlist, ndimensions), identity)
+    Jz = kron(momentum_projection_operator(Jlist, ndimensions), identity)
 
     identity = Matrix{Float64}(I, (ndimensions, ndimensions))
-    S2 = kron(identity, spin_operator(S))
-    Sz = kron(identity, spin_projection_operator(S))
+    S2 = kron(identity, momentum_operator(spin, ndimensions_spin))
+    Sz = kron(identity, momentum_projection_operator(spin, ndimensions_spin))
 
-    JpSm = kron(raising_operator(Jmax), spin_lowering_operator(S))
-    JmSp = kron(lowering_operator(Jmax), spin_raising_operator(S))
+    JpSm = kron(raising_operator(Jlist, ndimensions), lowering_operator(spin, ndimensions_spin))
+    JmSp = kron(lowering_operator(Jlist, ndimensions), raising_operator(spin, ndimensions_spin))
     
     return ((J2 - Jz^2) + (S2 - Sz^2) + (JpSm + JmSp))/(2*mass*r^2)
 end
