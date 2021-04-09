@@ -5,54 +5,26 @@ module Vibrational
 
 using LinearAlgebra
 
-"""Kinetic energy operator T_ij for the sinc-DVR method on the interval [-inf, inf].
-    See: D. Colbert and W. Miller, J. Chem. Phys., 96 (1992), doi:10.1063/1.462100
+"""Build the vibrational Hamiltonian for a uniformly spaced potential energy 
+grid using the sinc-DVR kinetic energy operator.
+
+For details of the sinc-DVR method, see: 
+D. Colbert and W. Miller, J. Chem. Phys., 96 (1992), doi:10.1063/1.462100
 """
-function kinetic_operator(npoints::Int, interval::Float64)
-    operator = Array{Float64}(undef, (npoints, npoints))
+function hamiltonian(
+    potential_grid :: Array{Float64, 1}, 
+    interval :: Float64,
+    reduced_mass :: Float64
+    )
+    npoints = length(potential_grid)
+    kinetic_operator = Array{Float64}(undef, (npoints, npoints))
     for j = 1:npoints
         for i = 1:j-1
-            operator[i, j] = (1 / (2* interval^2)) * 2*( ((-1)^(i - j)) / (i - j)^2 )
+            kinetic_operator[i, j] = (1 / (2*reduced_mass*interval^2)) * 2*( ((-1)^(i - j)) / (i - j)^2 )
         end
-        operator[j, j] = (1 / (2* interval^2)) * (pi^2 / 3)
+        kinetic_operator[j, j] = (1 / (2*reduced_mass*interval^2)) * (pi^2 / 3)
     end
-    return Symmetric(operator)
-end
-
-"""Calculates eigenvectors and eigenvalues of the sinc-DVR Hamiltonian for a grid of 
-potential energy values.
-    Arguments
-        potential_grid :: AbstractVector{Float64}
-            An array containing the value of the potential energy at each grid point.
-        interval :: Float64
-            The spatial interval Δr for the vibrational grid.
-        threshold :: Float64
-            Energy threshold above which to discard grid points.
-        mass :: Float64
-            The reduced mass of the molecule, appearing the kinetic energy operator.
-    Returns
-        vibrational_eigen :: LinearAlgebra.Eigen
-            Julia LinearAlgebra.Eigen object containing the eigenvectors and eigenvalues
-            of the sinc-DVR Hamiltonian matrix.
-        hamiltonian_matrix :: AbstractMatrix{Float64}
-            Hamiltonian matrix in the sinc-DVR basis (i.e prior to diagonalisation).
-""" 
-function solve(;
-    potential_grid :: Array{Float64, 1} = nothing, 
-    interval       :: Float64 = nothing, 
-    threshold      :: Float64 = -1.0, 
-    mass           :: Float64 = 1.0
-    )
-    if threshold < 0.
-        potential_operator = Diagonal(potential_grid)
-    else
-        usepoints = isless.(potential_grid, threshold)
-        potential_operator = Diagonal(potential_grid[usepoints])
-    end
-    kinetic_operator = sincdvr_kinetic(size(potential_operator)[1], interval)
-    hamiltonian = potential_operator + kinetic_operator/mass
-    vibrational_eigen = eigen(hamiltonian)
-    return (vibrational_eigen, hamiltonian)
+    return Symmetric(kinetic_operator) + Diagonal(potential_grid)
 end
 
 end
@@ -61,7 +33,8 @@ module Rotational
 
 using LinearAlgebra
 using SparseArrays
-using DataStructures
+using Arpack
+using BenchmarkTools
 
 """
 Builds the raising operator matrix for the basis of angular momentum quantum numbers provided.
@@ -80,7 +53,6 @@ function raising_operator(
     Jlist :: Array{Float64, 1},
     ndimensions :: Int64
     )
-    last = Jlist[length(Jlist)]
     rows = Int64[i for i=2:ndimensions]
     cols = Int64[i for i=1:ndimensions-1]
     vals = Array{Float64, 1}(undef, ndimensions-1)
@@ -104,9 +76,11 @@ function raising_operator(
     i = 1
     for M = -J:J-1
         vals[i] = (J*(J + 1) - M*(M + 1))^.5
+        i += 1
     end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
+
 
 """
 Builds the lowering operator matrix for the basis of angular momentum quantum numbers provided.
@@ -130,13 +104,16 @@ function lowering_operator(
     vals = Array{Float64, 1}(undef, ndimensions-1)
     i = 0
     for J in Jlist
-        for M = 1-J:J
-            vals[i] = (J*(J + 1) - M*(M - 1))^.5
+        for M = -J:J
+            if i > 0
+                vals[i] = (J*(J + 1) - M*(M - 1))^.5
+                i += 1
+            end
         end
     end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
-#
+
 function lowering_operator(
     J :: Float64,
     ndimensions :: Int64
@@ -145,8 +122,11 @@ function lowering_operator(
     cols = Int64[i for i=1:ndimensions-1]
     vals = Array{Float64, 1}(undef, ndimensions-1)
     i = 0
-    for M = 1-J:J
-        vals[i] = (J*(J + 1) - M*(M - 1))^.5
+    for M = -J:J
+        if i > 0
+            vals[i] = (J*(J + 1) - M*(M - 1))^.5
+            i += 1
+        end
     end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
@@ -221,10 +201,8 @@ function momentum_projection_operator(
     i = 1
     for J in Jlist
         for M = -J:J
-            if i != ndimensions
-                vals[i] = M
-                i += 1
-            end
+            vals[i] = M
+            i += 1
         end
     end
     return sparse(rows, cols, vals, ndimensions, ndimensions)
@@ -245,14 +223,15 @@ function momentum_projection_operator(
     return sparse(rows, cols, vals, ndimensions, ndimensions)
 end
 
+
 """
 Counts the number of dimensions, equivalent to the sum of (2J + 1), for a specified list of
 angular momentum quantum numbers. For a complete series of quantum numbers up to Jmax, this
 summation can be evaluated analytically.
 """
 function _countdimensions(
-    Jlist :: Array{Number, 1}
-)
+    Jlist :: Array{Float64, 1}
+    )
     ndimensions = 0
     for J in Jlist
         ndimensions += floor(Int64, 2*J + 1)
@@ -261,8 +240,8 @@ function _countdimensions(
 end
 
 function _countdimensions(
-    Jmax :: Number
-)
+    Jmax :: Float64
+    )
     nJ = floor(Int64, Jmax)
     if mod(2*Jmax, 2) == 0
         return (nJ + 1)^2
@@ -270,6 +249,7 @@ function _countdimensions(
         return nJ*(nJ + 3) + 2
     end
 end
+
 
 """
 Builds the rigid-rotor Hamiltonian for the specified list of angular momentum quantum numbers,
@@ -290,7 +270,7 @@ and given value of total spin angular momentum.
 function hamiltonian(
     Jlist :: Array{Float64, 1},
     spin  :: Float64,
-    mass  :: Float64,
+    reduced_mass  :: Float64,
     r     :: Float64
     )
 
@@ -298,21 +278,30 @@ function hamiltonian(
     ndimensions_spin = floor(Int64, 2*spin + 1)
     
     identity = Matrix{Float64}(1.0I, (ndimensions_spin, ndimensions_spin))
-    J2 = kron(momentum_operator(Jlist, ndimensions), identity)
-    Jz = kron(momentum_projection_operator(Jlist, ndimensions), identity)
+    J2 = momentum_operator(Jlist, ndimensions)
+    Jz = momentum_projection_operator(Jlist, ndimensions)
+    J2SI = kron(J2, identity)
+    JzSI = kron(Jz, identity)
 
     identity = Matrix{Float64}(I, (ndimensions, ndimensions))
-    S2 = kron(identity, momentum_operator(spin, ndimensions_spin))
-    Sz = kron(identity, momentum_projection_operator(spin, ndimensions_spin))
+    S2 = momentum_operator(spin, ndimensions_spin)
+    Sz = momentum_projection_operator(spin, ndimensions_spin)
+    JIS2 = kron(identity, S2)
+    JISz = kron(identity, Sz)
 
-    JpSm = kron(raising_operator(Jlist, ndimensions), lowering_operator(spin, ndimensions_spin))
-    JmSp = kron(lowering_operator(Jlist, ndimensions), raising_operator(spin, ndimensions_spin))
-    
-    return ((J2 - Jz^2) + (S2 - Sz^2) + (JpSm + JmSp))/(2*mass*r^2)
+    Jp = raising_operator(Jlist, ndimensions)
+    Jm = lowering_operator(Jlist, ndimensions)
+    Sp = raising_operator(spin, ndimensions_spin)
+    Sm = lowering_operator(spin, ndimensions_spin)
+    JpSm = kron(Jp, Sm)
+    JmSp = kron(Jm, Sp)
+    return ((J2SI - JzSI.^2) + (JIS2 - JISz^2) + (JpSm + JmSp))/(2*reduced_mass*r^2)
 end
+
 
 function integrate(bra, ket, interval)
     integrand = sum(interval * (bra + ket)/2)
     return integrand
 end
+
 end
