@@ -11,18 +11,18 @@ grid using the sinc-DVR kinetic energy operator.
 For details of the sinc-DVR method, see: 
 D. Colbert and W. Miller, J. Chem. Phys., 96 (1992), doi:10.1063/1.462100
 """
-function hamiltonian(
+function sincdvr(
     potential_grid :: Array{Float64, 1}, 
-    interval :: Float64,
+    sep :: Float64,
     reduced_mass :: Float64
     )
     npoints = length(potential_grid)
     kinetic_operator = Array{Float64}(undef, (npoints, npoints))
     for j = 1:npoints
         for i = 1:j-1
-            kinetic_operator[i, j] = (1 / (2*reduced_mass*interval^2)) * 2*( ((-1)^(i - j)) / (i - j)^2 )
+            kinetic_operator[i, j] = (1 / (2*reduced_mass*sep^2)) * 2*( ((-1)^(i - j)) / (i - j)^2 )
         end
-        kinetic_operator[j, j] = (1 / (2*reduced_mass*interval^2)) * (pi^2 / 3)
+        kinetic_operator[j, j] = (1 / (2*reduced_mass*sep^2)) * (pi^2 / 3)
     end
     return Symmetric(kinetic_operator) + Diagonal(potential_grid)
 end
@@ -96,7 +96,7 @@ Builds the lowering operator matrix for the basis of angular momentum quantum nu
             CSC sparse matrix representing the lowering operator for the rotational basis.
 """
 function lowering_operator(
-    Jlist :: Vector{Float64},
+    Jlist :: Array{Float64, 1},
     ndimensions :: Int64
     )
     rows = Int64[i for i=1:ndimensions-1]
@@ -192,7 +192,7 @@ Builds the momentum projection operator matrix for the basis of angular momentum
             CSC sparse matrix representing the momentum projection operator for the rotational basis.
 """
 function momentum_projection_operator(
-    Jlist :: Vector{Float64},
+    Jlist :: Array{Float64, 1},
     ndimensions :: Int64
     )
     rows = Int64[i for i=1:ndimensions]
@@ -229,9 +229,7 @@ Counts the number of dimensions, equivalent to the sum of (2J + 1), for a specif
 angular momentum quantum numbers. For a complete series of quantum numbers up to Jmax, this
 summation can be evaluated analytically.
 """
-function _countdimensions(
-    Jlist :: Array{Float64, 1}
-    )
+function countdimensions(Jlist :: Vector{Float64})
     ndimensions = 0
     for J in Jlist
         ndimensions += floor(Int64, 2*J + 1)
@@ -239,9 +237,7 @@ function _countdimensions(
     return ndimensions
 end
 
-function _countdimensions(
-    Jmax :: Float64
-    )
+function countdimensions(Jmax :: Float64)
     nJ = floor(Int64, Jmax)
     if mod(2*Jmax, 2) == 0
         return (nJ + 1)^2
@@ -268,40 +264,89 @@ and given value of total spin angular momentum.
             CSC sparse matrix representing the momentum projection operator for the rotational basis.
 """
 function hamiltonian(
-    Jlist :: Array{Float64, 1},
+    jaylist :: Array{Float64, 1},
     spin  :: Float64,
     reduced_mass  :: Float64,
     r     :: Float64
     )
 
-    ndimensions = _countdimensions(Jlist)
+    ndimensions = _countdimensions(jaylist)
     ndimensions_spin = floor(Int64, 2*spin + 1)
     
+    #Build the J, M operators in the tensor product basis
     identity = Matrix{Float64}(1.0I, (ndimensions_spin, ndimensions_spin))
-    J2 = momentum_operator(Jlist, ndimensions)
-    Jz = momentum_projection_operator(Jlist, ndimensions)
-    J2SI = kron(J2, identity)
-    JzSI = kron(Jz, identity)
+    jaysq = momentum_operator(jaylist, ndimensions)
+    em = momentum_projection_operator(jaylist, ndimensions)
+    jaysq_spinid = kron(jaysq, identity)
+    em_spinid = kron(em, identity)
 
+    #Build the S, Σ operators in the tensor product basis
     identity = Matrix{Float64}(I, (ndimensions, ndimensions))
-    S2 = momentum_operator(spin, ndimensions_spin)
-    Sz = momentum_projection_operator(spin, ndimensions_spin)
-    JIS2 = kron(identity, S2)
-    JISz = kron(identity, Sz)
+    spinsq = momentum_operator(spin, ndimensions_spin)
+    sigma = momentum_projection_operator(spin, ndimensions_spin)
+    jayid_spinsq = kron(identity, spinsq)
+    jayid_sigma = kron(identity, sigma)
 
-    Jp = raising_operator(Jlist, ndimensions)
-    Jm = lowering_operator(Jlist, ndimensions)
-    Sp = raising_operator(spin, ndimensions_spin)
-    Sm = lowering_operator(spin, ndimensions_spin)
-    JpSm = kron(Jp, Sm)
-    JmSp = kron(Jm, Sp)
-    return ((J2SI - JzSI.^2) + (JIS2 - JISz^2) + (JpSm + JmSp))/(2*reduced_mass*r^2)
+    #Build S-uncoupling operators in the tensor product basis
+    jaypl = raising_operator(jaylist, ndimensions)
+    jaymi = lowering_operator(jaylist, ndimensions)
+    spinpl = raising_operator(spin, ndimensions_spin)
+    spinmi = lowering_operator(spin, ndimensions_spin)
+    jaypl_spinmi = kron(jaypl, spinmi)
+    jaymi_spinpl = kron(jaypl, spinmi)
+
+    #Return sum of Hamiltonian terms
+    return ((jaysq_spinid - em_spinid.^2) + (jayid_spinsq - jayid_sigma.^2) + (jaypl_spinmi + jaymi_spinpl))/(2*reduced_mass*r^2)
+end
+
+end
+
+module Vibronic
+
+include("data.jl")
+
+function hamiltonian(
+    sincdvr_sep :: VibrationalGrid,
+    potentials :: AbstractArray{Array{Float64, 1}, 1};
+    lambda :: AbstractArray{Float64, 1} = [0.0],
+    spin   :: AbstractArray{Float64, 1} = [0.0],
+    mu     :: Float64 = 1.0
+    )
+    vib_hamils = Vibrational.sincdvr.(potentials, sincdvr_sep)
+    vib_eigens = eigen.(vib_hamils)
+
+end
+
+function basis(
+    nstates :: Int64,
+    veemaxlist :: Vector{Float64},
+    lambdalist :: Vector{Float64},
+    esslist    :: Vector{Float64},
+    jaylist    :: Vector{Float64}
+    )
+    rotdimen = Rotational.countdimensions(jaylist)
+    vibdimen = sum(veemaxlist)
+    elecdimenlist = 2.*esslist .+ 1
+    elecdimen = sum(elecdimenlist)
+    ndimen = elecdimen*vibronicdimen*rotationaldimen
+    
+    basis = BasisSet(
+        nstates, veemaxlist, lambdalist, esslist, jaylist, 
+        floor(Int64, ndimen), floor(Int64, rotdimen), 
+        floor(Int64, vibdimen), floor(Int64, elecdimen)
+        )
+    return basis
 end
 
 
-function integrate(bra, ket, interval)
-    integrand = sum(interval * (bra + ket)/2)
-    return integrand
+function quantum_numbers(basis::BasisSet, i)
+    rotdimen   = basis.rotdimen
+    vibdimen   = basis.vibdimen
+    elecdimen  = basis.elecdimen
+    rot_block = i ÷ (vibdimen*elecdimen)
+    rot_i = i % (vibdimen*elecdimen)
+    elec_block = rot_i ÷ vibdimen
+    elec_i = i % vibdimen
 end
 
 end

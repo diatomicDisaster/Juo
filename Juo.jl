@@ -1,11 +1,8 @@
 module Juo
 
-using BenchmarkTools
-using DataStructures
-
 include("input.jl")
-include("Functions.jl")
-include("Schrödinger.jl")
+include("functions.jl")
+include("schrödinger.jl")
 include("test.jl")
 
 end
