@@ -225,29 +225,6 @@ end
 
 
 """
-Counts the number of dimensions, equivalent to the sum of (2J + 1), for a specified list of
-angular momentum quantum numbers. For a complete series of quantum numbers up to Jmax, this
-summation can be evaluated analytically.
-"""
-function countdimensions(Jlist :: Vector{Float64})
-    ndimensions = 0
-    for J in Jlist
-        ndimensions += floor(Int64, 2*J + 1)
-    end
-    return ndimensions
-end
-
-function countdimensions(Jmax :: Float64)
-    nJ = floor(Int64, Jmax)
-    if mod(2*Jmax, 2) == 0
-        return (nJ + 1)^2
-    else
-        return nJ*(nJ + 3) + 2
-    end
-end
-
-
-"""
 Builds the rigid-rotor Hamiltonian for the specified list of angular momentum quantum numbers,
 and given value of total spin angular momentum.
     Arguments
@@ -304,6 +281,13 @@ end
 module Vibronic
 
 include("data.jl")
+struct VibrationalGrid
+    rmin :: Float64
+    rmax :: Float64
+    sep  :: Float64
+    num  :: Int64
+    vals :: Vector{Float64}
+end
 
 function hamiltonian(
     sincdvr_sep :: VibrationalGrid,
@@ -317,36 +301,7 @@ function hamiltonian(
 
 end
 
-function basis(
-    nstates :: Int64,
-    veemaxlist :: Vector{Float64},
-    lambdalist :: Vector{Float64},
-    esslist    :: Vector{Float64},
-    jaylist    :: Vector{Float64}
-    )
-    rotdimen = Rotational.countdimensions(jaylist)
-    vibdimen = sum(veemaxlist)
-    elecdimenlist = 2.*esslist .+ 1
-    elecdimen = sum(elecdimenlist)
-    ndimen = elecdimen*vibronicdimen*rotationaldimen
-    
-    basis = BasisSet(
-        nstates, veemaxlist, lambdalist, esslist, jaylist, 
-        floor(Int64, ndimen), floor(Int64, rotdimen), 
-        floor(Int64, vibdimen), floor(Int64, elecdimen)
-        )
-    return basis
-end
 
 
-function quantum_numbers(basis::BasisSet, i)
-    rotdimen   = basis.rotdimen
-    vibdimen   = basis.vibdimen
-    elecdimen  = basis.elecdimen
-    rot_block = i ÷ (vibdimen*elecdimen)
-    rot_i = i % (vibdimen*elecdimen)
-    elec_block = rot_i ÷ vibdimen
-    elec_i = i % vibdimen
-end
 
 end
