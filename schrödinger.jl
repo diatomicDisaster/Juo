@@ -93,24 +93,22 @@ end
 Build the vibronic basis set for a list of potential energy curves.
 """
 function vibronic_basis(
-    potential_list :: Vector{Vector{Float64}},
-    veemax_list    :: Vector{Int64},
-    separation     :: Float64, 
-    reduced_mass   :: Float64
+    veemax       :: Int64,
+    potential    :: Vector{Float64},
+    separation   :: Float64, 
+    reduced_mass :: Float64
 )
     nstates = length(potential_list)
-    basis = Vector{Vibronic}(undef, sum(veemax_list .+ 1))
-    for (p, potential) in enumerate(potential_list)
-        vibrational_hamiltonian = sincdvr(potential, separation, reduced_mass)
-        vibeig = eigen(vibrational_hamiltonian)
-        for (v, vee) in enumerate(0:veemax_list[p])
-            i = sum(veemax_list[1:p - 1]) + v
-            val = vibeig.values[v]
-            vec = vibeig.vectors[:,v]
-            basis[i] = Vibronic(p, val, vec)
-        end
+    vibbasis = Vector{Vibronic}(undef, veemax + 1)
+    vibhamiltonian = sincdvr(potential, separation, reduced_mass)
+    vibeigen = eigen(vibhamiltonian)
+    for (v, vee) in enumerate(0:veemax_list[p])
+        i = sum(veemax_list[1:p - 1]) + v
+        val = vibeigen.values[v]
+        vec = vibeigen.vectors[:,v]
+        vibbasis[i] = Vibrational(vee, val, vec)
     end
-    return basis
+    return vibbasis
 end
 
 """
@@ -140,5 +138,7 @@ function rovibronic_basis(
     end
     return basis
 end
+
+
 
 end

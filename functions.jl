@@ -91,7 +91,7 @@ end
         V   :: Vector{Float}
             Vector of potential energy values at each internuclear distance.
 """
-function morse_damp_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, damp::Float64=0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::AbstractVector{Float64}=Float64[])
+function morse_damp_polynomial(r::Float64; r_e::Float64=1.0, a::Float64=1.0, damp::Float64=0.0, D_e::Float64=1.0, V_0::Float64=0.0, expansion_parameters::AbstractVector{Float64}=Float64[])
     y = 1. - exp(-a*(r - r_e))
     V_long = D_e * y^2
     V_damp = exp(-damp*(r - r_e))
