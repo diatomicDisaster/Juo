@@ -18,7 +18,7 @@ function full()
     vibgrid = [i for i=rmin:gridsep:rmax]
 
     oxygen_data = CSV.read("oxygen.csv", DataFrame)
-    couplings = [Grids.Interpolate(Grids.Grid(oxygen_data.R, oxygen_data."Q11"), vibgrid)]
+    couplings = [Grids.Interpolate(Grids.Grid(oxygen_data.R, oxygen_data.Q), vibgrid)]
 
     print("Building potential grids... ")
     potens  = [#Morse potential parameters for O2

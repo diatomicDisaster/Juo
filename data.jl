@@ -20,10 +20,3 @@ struct Rovibronic
     jay    :: Float64
     omega  :: Float64
 end
-
-struct SupportError <: Exception
-    func :: String
-    type :: Type
-end
-
-Base.showerror(io::IO, e::SupportError) = print(io, "The use of $func with $type is not yet supported.")
