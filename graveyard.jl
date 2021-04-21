@@ -459,3 +459,65 @@ struct InputError <: Exception
     end
     return (fin, fout)
   end
+
+  
+abstract type AbstractGrid end
+
+struct Grid <: AbstractGrid
+    rmin    :: Float64
+    rmax    :: Float64
+    rsep    :: Array{Float64}
+    npoints :: Int64
+    points  :: Array{Float64}
+    values  :: Array{Float64}
+end
+
+struct UniformGrid <: AbstractGrid
+    rmin    :: Float64
+    rmax    :: Float64
+    rsep    :: Float64
+    npoints :: Int64
+    points  :: Array{Float64}
+    values  :: Array{Float64}
+end
+
+function Grid(points::Array{Float64}, values::Array{Float64})
+    npoints = length(points)
+    sortinds = sortperm(points)
+    points_ = points[sortinds]
+    diffs = diff(points_)
+    if all(p -> p≈first(diffs), diffs)
+        return UniformGrid(points_[1], points_[npoints], diff(points_[1:2])[1], npoints, points_, values[sortinds])
+    else
+        return Grid(points_[1], points_[npoints], diff(points_), npoints, points_, values[sortinds])
+    end
+end
+
+
+function Interpolate(grid::AbstractGrid, to_points::Array{Float64})
+    spline = Spline1D(grid.points, grid.values)
+    return Grid(to_points, spline(to_points))
+end
+
+
+struct Vibrational
+    vee    :: Int64
+    energy :: Float64
+    vector :: Array{Float64}
+end
+
+struct Electronic
+    lambda    :: Float64
+    ess       :: Float64
+    vibbasis  :: Vector{Vibrational}
+end
+
+struct Rovibronic
+    state  :: Int64
+    vee    :: Int64
+    lambda :: Float64
+    ess    :: Float64
+    sigma  :: Float64
+    jay    :: Float64
+    omega  :: Float64
+end

@@ -3,82 +3,94 @@ module Juo
 using LinearAlgebra
 using SparseArrays
 using Dierckx
-include("functions.jl")
 
-struct Vibrational
+abstract type AbstractGrid end
+
+struct Grid <: AbstractGrid
+    nodes   :: Vector{Float64}
+    values  :: Vector{Float64}
+end
+
+struct Potential <: AbstractGrid
+    nodes   :: Vector{Float64}
+    values  :: Vector{Float64}
+    lambda  :: Float64
+    ess     :: Float64
+end
+
+struct Coupling <: AbstractGrid
+    nodes   :: Vector{Float64}
+    values  :: Vector{Float64}
+    left    :: Potential
+    right   :: Potential
+end
+
+length(A::AbstractGrid) = length(A.nodes)
+
+struct VibrationalBasis
     vee    :: Int64
     energy :: Float64
     vector :: Array{Float64}
 end
 
-struct Electronic
-    potential :: Vector{Float64}
-    lambda    :: Float64
-    ess       :: Float64
-    vibbasis  :: Vector{Vibrational}
+struct ElectronicBasis
+    state   :: Int64
+    lambda  :: Float64
+    ess     :: Float64
+    vib     :: Tuple{VibrationalBasis}
 end
 
-struct Coupling
-    couples :: Tuple{Electronic, 1}
-    values  :: Vector{Float64}
+mutable struct Hamiltonian
+    mu    :: Float64
+    rgrid :: Vector{Float64}
+    poten :: Vector{Potential}
+    coupl :: Vector{Coupling}
+    elebasis :: IdDict{Potential, ElectronicBasis}
 end
 
-struct Hamiltonian
-    electronic  :: Vector{Electronic}
-    couplings   :: Vector{Coupling}
-    separation  :: Float64
-    reducedmass :: Float64
-end
+Hamiltonian(mu, grid) = Hamiltonian(
+    mu, grid, 
+    Vector{Vector{Float64}}(undef, 0), 
+    Vector{Vector{Float64}}(undef, 0),
+    IdDict()
+)
 
-
-struct Rovibronic
-    state  :: Int64
-    vee    :: Int64
-    lambda :: Float64
-    ess    :: Float64
-    sigma  :: Float64
-    jay    :: Float64
-    omega  :: Float64
-end
-
-abstract type AbstractGrid end
-
-struct Grid <: AbstractGrid
-    rmin    :: Float64
-    rmax    :: Float64
-    rsep    :: Array{Float64}
-    npoints :: Int64
-    points  :: Array{Float64}
-    values  :: Array{Float64}
-end
-
-struct UniformGrid <: AbstractGrid
-    rmin    :: Float64
-    rmax    :: Float64
-    rsep    :: Float64
-    npoints :: Int64
-    points  :: Array{Float64}
-    values  :: Array{Float64}
-end
-
-function Grid(points::Array{Float64}, values::Array{Float64})
-    npoints = length(points)
-    sortinds = sortperm(points)
-    points_ = points[sortinds]
-    diffs = diff(points_)
-    if all(p -> p≈first(diffs), diffs)
-        return UniformGrid(points_[1], points_[npoints], diff(points_[1:2])[1], npoints, points_, values[sortinds])
+function Hamiltonian(mu, rgrid, poten, coupl)
+    nodesep = diff(rgrid)
+    if all(p -> p≈first(nodesep), nodesep)
+        return Hamiltonian(mu, rgrid, poten, coupl)
     else
-        return Grid(points_[1], points_[npoints], diff(points_), npoints, points_, values[sortinds])
+        @warn "grid must be equally spaced."
+        return nodesep
     end
 end
 
-
-function Interpolate(grid::AbstractGrid, to_points::Array{Float64})
-    spline = Spline1D(grid.points, grid.values)
-    return Grid(to_points, spline(to_points))
+function (ham::Hamiltonian)(pot::Potential)
+    spl = Spline1D(pot.nodes, pot.values)
+    interp_pot = Potential(pot.nodes, pot.values, pot.lambda, pot.ess)
+    push!(ham.poten, interp_pot)
+    x = sortperm([min(p.values...) for p in ham.poten])
+    ham.poten = ham.poten[x]
+    return
 end
 
+function (ham::Hamiltonian)(coupl::Coupling)
+    spl = Spline1D(coupl.nodes, coupl.values)
+    interp_coupl = Coupling(coupl.nodes, coupl.values, coupl.left, coupl.right)
+    push!(ham.coupl, interp_coupl)
+end
+
+function vibsolve!(ham::Hamiltonian; vmax_list::Vector{Float64}=fill(Inf, length(ham.poten)))
+    sep = diff(ham.rgrid[1:2])[1]
+    elebasis = IdDict{Potential, ElectronicBasis}(pot=>undef for pot in ham.poten)
+    Threads.@threads for (p, pot) in enumerate(ham.poten)
+        eig = sincdvr(pot.values, diff(pot.nodes[1:2])[1], sep)
+        vmax = vmax_list[p]
+        vibbasis = VibrationalBasis.([v for v=0:vmax], eig.values[1:vmax+1], eig.vectors[1:vmax+1])
+        elebasis[pot] = ElectronicBasis(p, pot.lambda, pot.ess, vibbasis)
+    end
+    ham.elebasis = elebasis
+end
 
 """Build the vibrational Hamiltonian for a uniformly spaced potential energy 
 grid using the sinc-DVR kinetic energy operator.
@@ -95,13 +107,13 @@ function sincdvr(potential_grid::Array{Float64, 1}, dr::Float64, mu::Float64)
         end
         kinetic_operator[j, j] = (1 / (2*mu*dr^2)) * (pi^2 / 3)
     end
-    return Symmetric(kinetic_operator) + Diagonal(potential_grid)
+    return eigen(Symmetric(kinetic_operator) + Diagonal(potential_grid))
 end
 
 """
 Integrate the vibrational matrix element of a given function over the grid.
-    """
-function integrate(left::Array{Rovibronic}, grid_values::Array{Float64}, right::Array{Rovibronic}; dr::Float64=1.0)
+"""
+function integrate(left::Array{VibrationalBasis}, grid_values::Array{Float64}, right::Array{VibrationalBasis}; dr::Float64=1.0)
     return dr*sum(left .* grid_values .* right)
 end
 
@@ -170,13 +182,13 @@ function vibronic_basis(
     separation   :: Float64, 
     reduced_mass :: Float64
 )
-    vibbasis = Vector{Vibrational}(undef, veemax + 1)
+    vibbasis = Vector{VibrationalBasis}(undef, veemax + 1)
     vibhamiltonian = sincdvr(potential, separation, reduced_mass)
     vibeigen = eigen(vibhamiltonian)
     for (v, vee) in enumerate(0:veemax)
         val = vibeigen.values[v]
         vec = vibeigen.vectors[:,v]
-        vibbasis[v] = Vibrational(vee, val, vec)
+        vibbasis[v] = VibrationalBasis(vee, val, vec)
     end
     return vibbasis
 end
