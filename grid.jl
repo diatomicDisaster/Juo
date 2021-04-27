@@ -24,3 +24,8 @@ end
 Coupling(nodes, values, left, right) = 
     Coupling(nodes, values, left, right, Matrix{Float64}(undef, length(nodes), length(nodes)))
 #Base.iterate(coupl::Coupling, state=1) = state > length(coupl.nodes) ? nothing : (coupl.nodes[state], state+1)
+
+"""
+Integrate the vibrational matrix element of a given function over the grid.
+"""
+Base.sum(leftvib::Vib, coupl::Coupling, rightvib::Vib) = diff(coupl.nodes[1:2])[1]*sum(leftvib.vector, coupl.values, rightvib.vector)
