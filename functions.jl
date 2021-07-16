@@ -4,8 +4,6 @@ available.
 """
 module Potentials
 
-using Plots
-
 """Functional form of the simple Morse potential energy curve.
     Arguments
         r :: Float64
