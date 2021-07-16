@@ -11,21 +11,25 @@ Base.length(G::AbstractGrid) = length(G.nodes)
 struct VibGrid <: AbstractGrid
     dr::Float64
     nodes::Vector{Float64}
+    VibGrid(dr, nodes) = 
+        !all(p -> p≈nodes[2]-nodes[1], diff(nodes)) ? error("Grid not uniformly spaced") :
+        new(dr, nodes)
 end
+VibGrid() = VibGrid(0.05, collect(1.:.05:10.))
+VibGrid(nodes::Vector{Float64}) = VibGrid(nodes[2]-nodes[1], nodes)
 
 struct Coupling <: AbstractGrid
-    dr::Float64
     nodes::Vector{Float64}
     values::Vector{Float64}
     Coupling(dr, nodes, values) = length(nodes) == length(values) ? error("Must have same number of nodes and values") : new(dr, nodes, values)
 end
 
 struct Potential <: AbstractGrid
-    dr::Float64
     nodes::Vector{Float64}
     values::Vector{Float64}
     Potential(dr, nodes, values) = length(nodes) == length(values) ? error("Must have same number of nodes and values") : new(dr, nodes, values)
 end
+Potential(nodes::undef, values::undef) = Potential(Vector{Float64}(undef, 0), Vector{Float64}(undef, 0))
 
 struct Diatom
     masses::Tuple{Float64, Float64}
@@ -34,10 +38,11 @@ struct Diatom
     potential::Potential
     couplings::Vector{Coupling}
 end
-Diatom(masses::Tuple{Real, Real}) = Diatom(masses, prod(masses)/sum(masses))
-Diatom(massA::Real, massB::Real) = Diatom((massA, massB))
-Diatom(atoms::Tuple{String, String}) = Diatom(map(atom -> Data.atommass[atom], atoms))
-Diatom(atomA::String, atomB::String) = Diatom((atomA, atomB))
+Diatom(masses::Tuple{Float64, Float64}, mu::Float64) = 
+    Diatom(masses, mu, VibGrid(), Potential(undef, undef), Vector{Coupling}(undef, 0))
+Diatom(masses::Tuple{Float64, Float64}) = Diatom(masses, prod(masses)/sum(masses), )
+Diatom(massA::Float64, massB::Float64) = Diatom((massA, massB))
+Diatom(atomA::String, atomB::String) = Diatom(map(atom -> Data.atommass[atom], (atomA, atomB)))
 
 function (diatom::Diatom)(poten::Potential)
     spline = spline1D(poten.nodes, poten.values)
