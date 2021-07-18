@@ -21,15 +21,19 @@ VibGrid(nodes::Vector{Float64}) = VibGrid(nodes[2]-nodes[1], nodes)
 struct Coupling <: AbstractGrid
     nodes::Vector{Float64}
     values::Vector{Float64}
-    Coupling(dr, nodes, values) = length(nodes) == length(values) ? error("Must have same number of nodes and values") : new(dr, nodes, values)
+    Coupling(dr, nodes, values) = 
+        length(nodes) == length(values) ? error("Must have same number of nodes and values") : 
+        new(dr, nodes, values)
 end
 
 struct Potential <: AbstractGrid
     nodes::Vector{Float64}
     values::Vector{Float64}
-    Potential(dr, nodes, values) = length(nodes) == length(values) ? error("Must have same number of nodes and values") : new(dr, nodes, values)
+    uniform::Bool
+    Potential(dr, nodes, values) = 
+        length(nodes) == length(values) ? error("Must have same number of nodes and values") : 
+        new(dr, nodes, values)
 end
-Potential(nodes::undef, values::undef) = Potential(Vector{Float64}(undef, 0), Vector{Float64}(undef, 0))
 
 struct Diatom
     masses::Tuple{Float64, Float64}
@@ -37,10 +41,10 @@ struct Diatom
     grid::VibGrid
     potential::Potential
     couplings::Vector{Coupling}
+    vibbasis::Vector{VibState}
+    Diatom(masses, mu) = new(masses, mu)
 end
-Diatom(masses::Tuple{Float64, Float64}, mu::Float64) = 
-    Diatom(masses, mu, VibGrid(), Potential(undef, undef), Vector{Coupling}(undef, 0))
-Diatom(masses::Tuple{Float64, Float64}) = Diatom(masses, prod(masses)/sum(masses), )
+Diatom(masses::Tuple{Float64, Float64}) = Diatom(masses, prod(masses)/sum(masses))
 Diatom(massA::Float64, massB::Float64) = Diatom((massA, massB))
 Diatom(atomA::String, atomB::String) = Diatom(map(atom -> Data.atommass[atom], (atomA, atomB)))
 
@@ -66,8 +70,8 @@ struct VibState
     vector::Vector{Float64}
 end
 
-function sincdvr(potential::Vector{Real}, dr, mu)
-    npoints = length(potential_grid)
+function sincdvr(poten, dr, mu)
+    npoints = length(poten)
     kinetic_operator = Array{Real}(undef, (npoints, npoints))
     for j = 1:npoints
         for i = 1:j-1
@@ -75,13 +79,27 @@ function sincdvr(potential::Vector{Real}, dr, mu)
         end
         kinetic_operator[j, j] = (1/(2*mu*dr^2)) * (pi^2 / 3)
     end
-    eig = eigen(Symmetric(kinetic_operator) + Diagonal(potential_grid))
+    eig = eigen(Symmetric(kinetic_operator) + Diagonal(poten))
     nvib = length(eig.values)
     vibbasis = Vector{VibState}(undef, nvib)
     for i = 0:nvib-1
         vibbasis[i] = VibState(i-1, val, vec)
     end
     return vibbasis
+end
+
+function solve(diatom::Diatom, jlist; nvee=Inf, veethresh=Inf)
+    vibbasis = sincdvr(diatom.potential.values, diatom.vibgrid.dr, diatom.mu)
+    if veethresh == Inf & nvee == Inf
+        nvee = length(vibbasis)
+    elseif veethresh < Inf & nvee == Inf
+        for i=1:length(vibbasis)
+            vibbasis[i].energy < veethresh && 
+
+
+
+    diatom.vibbasis = vibbasis[1:nvee]
+
 end
 
 end
