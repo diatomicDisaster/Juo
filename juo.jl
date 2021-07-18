@@ -18,9 +18,9 @@ end
 VibGrid() = VibGrid(0.05, collect(1.:.05:10.))
 VibGrid(nodes::Vector{Float64}) = VibGrid(nodes[2]-nodes[1], nodes)
 
-struct Coupling <: AbstractGrid
+struct Coupling{N<:Number} <: AbstractGrid
     nodes::Vector{Float64}
-    values::Vector{Float64}
+    values::Vector{N}
     Coupling(dr, nodes, values) = 
         length(nodes) == length(values) ? error("Must have same number of nodes and values") : 
         new(dr, nodes, values)
@@ -72,34 +72,34 @@ end
 
 function sincdvr(poten, dr, mu)
     npoints = length(poten)
-    kinetic_operator = Array{Real}(undef, (npoints, npoints))
     for j = 1:npoints
         for i = 1:j-1
             kinetic_operator[i, j] = (1/(mu*dr^2)) * (-1)^(i - j)/(i - j)^2
         end
         kinetic_operator[j, j] = (1/(2*mu*dr^2)) * (pi^2 / 3)
     end
-    eig = eigen(Symmetric(kinetic_operator) + Diagonal(poten))
-    nvib = length(eig.values)
-    vibbasis = Vector{VibState}(undef, nvib)
-    for i = 0:nvib-1
-        vibbasis[i] = VibState(i-1, val, vec)
-    end
-    return vibbasis
+    return eigen(Symmetric(kinetic_operator) + Diagonal(poten))
 end
 
-function solve(diatom::Diatom, jlist; nvee=Inf, veethresh=Inf)
-    vibbasis = sincdvr(diatom.potential.values, diatom.vibgrid.dr, diatom.mu)
-    if veethresh == Inf & nvee == Inf
-        nvee = length(vibbasis)
-    elseif veethresh < Inf & nvee == Inf
-        for i=1:length(vibbasis)
-            vibbasis[i].energy < veethresh && 
-
-
-
-    diatom.vibbasis = vibbasis[1:nvee]
-
+function integrate(vibbasis::Vector{VibState}, coupling::Coupling)
+    for j = 
+    for i, vibstate in enumerate(vibbasis)
+        pre_vec = coupling.values .* vibstate.vector
+        for f, vibstate in enumerate(vibbasis)
+            mat[f, i] = pre_vec .* vibstate.vector
+        end
+    end
+    return mat
+end
+        
+function solve(diatom::Diatom, jaylist; nvee=Inf)
+    vibeig = sincdvr(diatom.potential.values, diatom.vibgrid.dr, diatom.mu)
+    nvee = nvee==Inf || nvee>length(vibeig.values) ? nvee : length(vibeig.values)
+    for i = 1:nvee
+        vee, val, vec, vee = i-1, vibeig.values[i], vibeig.vectors[i]
+        diatom.vibbasis[i] = VibState(vee, val, vec)
+    end
+    
 end
 
 end
