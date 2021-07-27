@@ -1,6 +1,3 @@
-module Grids
-export AbstractCoupling, AbstractPotential, AbstractValGrid, AbstractVibGrid, UniformCoupling, UniformPotential, UniformVibGrid
-
 abstract type AbstractGrid end
 Base.length(G::AbstractGrid) = length(G.nodes)
 abstract type AbstractVibGrid <: AbstractGrid end
@@ -45,16 +42,12 @@ Main.Juo.UniformCoupling{Float64}([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0],
 struct UniformCoupling{T} <: AbstractCoupling{T}
     nodes::Vector{T}
     values::Vector{T}
-    coupling_quanta::NamedTuple{(:lambdaf, :essf, :sigmaf, :lambdai, :essi, :sigmai), Tuple{Float64, Float64, Float64, Float64, Float64, Float64}}
-    function UniformCoupling(nodes, values, coupling_quanta)
+    quanta::CouplQuanta
+    function UniformCoupling(nodes::Vector{T}, values::Vector{T}, quanta::CouplQuanta) where {T<:Number}
         length(nodes) != length(values) && throw(ArgumentError("Must have same number of nodes and values"))
-        new{T}(nodes, values)
+        new{T}(nodes, values, quanta)
     end
 end
-UniformCoupling(nodes, values) = UniformCoupling(nodes, values,
-    (lambdaf=NaN, essf=NaN, sigmaf=NaN, lambdai=NaN, essi=NaN, sigmai=NaN)
-)
-
 
 """
     UniformPotential{T<:Number} <: AbstractPotential
@@ -71,6 +64,7 @@ Main.Juo.UniformPotential{Float64}([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
 struct UniformPotential{T} <: AbstractPotential{T}
     nodes::Vector{T}
     values::Vector{T}
+    quanta::NamedTuple{(:lambda, :ess), Tuple{Float64, Float64}}
     function UniformPotential(nodes::Vector{T}, values::Vector{T}) where {T<:Number}
         length(nodes) != length(values) && throw(ArgumentError("Must have same number of nodes and values"))
         new{T}(nodes, values)
@@ -102,6 +96,4 @@ function interpolate!(valgrid::AbstractValGrid, vibgrid::AbstractVibGrid)
     interpvals = spline(vibgrid.nodes)
     valgrid.nodes = vibgrid.nodes
     valgrid.values = interpvals
-end
-
 end

@@ -1,38 +1,7 @@
-module Basis
-include("grids.jl")
-using LinearAlgebra
-using .Grids
-
-export VibBasis, EleBasis, RotBasis, RovibronicBasis
-
-"""
-    sinc_dvr(mu, dr, poten)
-
-Build the vibrational Hamiltonian using the sinc-DVR method for a molecule with reduced mass `mu`, 
-and a vibrational grid spaceing `dr` with a series of potential points `poten`.
-
-# Examples
-```jldoctest
-julia> sinc_dvr(1.0, 0.5, ([1., 1.5, 2., 2.5, 3.].- 2.).^2)
-5×5 Symmetric{Float64, Matrix{Float64}}:
-  7.57974   -4.0        1.0      -0.444444   0.25
- -4.0        6.82974   -4.0       1.0       -0.444444
-  1.0       -4.0        6.57974  -4.0        1.0
- -0.444444   1.0       -4.0       6.82974   -4.0
-  0.25      -0.444444   1.0      -4.0        7.57974
-```
-"""
-function sinc_dvr(mu, dr, poten)
-    npoints = length(poten)
-    kinetic_operator = Matrix{Float64}(undef, npoints, npoints)
-    for j = 1:npoints
-        for i = 1:j-1
-            kinetic_operator[i, j] = (1/(mu*dr^2)) * (-1)^(i - j)/(i - j)^2
-        end
-        kinetic_operator[j, j] = (1/(2*mu*dr^2)) * (pi^2 / 3)
-    end
-    return Symmetric(kinetic_operator) + Diagonal(poten)
-end
+abstract type AbstractBasis end
+Base.iterate(B::AbstractBasis, state...) = iterate(B.quanta, state...)
+Base.length(B::AbstractBasis) = length(B.quanta)
+Base.size(B::AbstractBasis) = size(B.quanta)
 
 """
 VibBasis
@@ -40,7 +9,7 @@ VibBasis
 Vibrational basis set, with a vector `quanta` of vibrational quantum numbers `vee`
 representing vibrational eigenstates. 
 """
-struct VibBasis
+struct VibBasis <: AbstractBasis
 eigen::Eigen{Float64, Float64, Matrix{Float64}, Vector{Float64}}
 quanta::Vector{NamedTuple{(:vee,), Tuple{Int64}}}
 end
@@ -68,7 +37,7 @@ function VibBasis(mu, dr, poten; nvee=nothing)
     end
     return VibBasis(vibeig, quanta)
 end
-VibBasis(mu, dr, poten::AbstractPotential; kwargs...) = VibBasis(mu, dr, poten.values; kwargs...)
+VibBasis(mu, dr, poten::AbstractPotential; nvee=nothing) = VibBasis(mu, dr, poten.values; nvee=nvee)
 
 """
     EleBasis(lambda, ess, gerade, symmetric)
@@ -82,7 +51,7 @@ julia> EleBasis(1.0, 1.0, true)
 julia> EleBasis(0, 0, true, false)
 ````
 """
-struct EleBasis
+struct EleBasis <: AbstractBasis
     quanta::Vector{NamedTuple{(:lambda, :ess, :sigma), Tuple{Float64, Float64, Float64}}}
     multiplicity::Int64
     term::String
@@ -93,12 +62,10 @@ end
 function EleBasis(ess, lambda, gerade::Bool)
     lambda == 0 && throw(ArgumentError("± symmetry (`symmetric = true` or `false`) is required for ``Σ``` electronic states.")) 
     multi = round(Int, 2*ess + 1)
-    quanta = Vector{NamedTuple}(undef, multi*round(Int, 2*lambda))
-    i = 1
+    quanta = []
     for lam in (lambda==0. ? [lambda] : [-abs(lambda), abs(lambda)])
         for sigma = -ess:ess
-            quanta[i] = (lambda=lam, ess=ess, sigma=sigma)
-            i += 1
+            push!(quanta, (lambda=lam, ess=ess, sigma=sigma))
         end
     end
     #construct term symbol
@@ -114,12 +81,10 @@ function EleBasis(ess, lambda, gerade::Bool, symmetric::Bool)
         return EleBasis(ess, lambda, gerade)
     else
         multi = round(Int, 2*ess + 1)
-        quanta = Vector{NamedTuple}(undef, multi*round(Int, 2*lambda))
-        i = 1
+        quanta = []
         for lam in (lambda==0. ? [lambda] : [-abs(lambda), abs(lambda)])
             for sigma = -ess:ess
-                quanta[i] = (lambda=lam, ess=ess, sigma=sigma)
-                i += 1
+                push!(quanta, (lambda=lam, ess=ess, sigma=sigma))
             end
         end
         #construct term symbol
@@ -136,7 +101,7 @@ end
 Create a rotational basis for a given total angular momentum quantum number `jay`
 according to Hund's case a) from the electronic basis `elebasis`.
 """
-struct RotBasis
+struct RotBasis <: AbstractBasis
     quanta::Vector{NamedTuple{(:jay, :omega), Tuple{Float64, Float64}}}
 end
 
@@ -154,8 +119,13 @@ function RotBasis(jay, elebasis)
     return RotBasis(quanta)
 end 
 
-struct RovibronicBasis
-    quanta::Vector{NamedTuple{(:jay, :omega, :lambda, :ess, :sigma, :vee), Tuple{Float64, Float64, Float64, Float64, Float64, Int64}}}
+"""
+    RovibronicBasis(elebasis, vibbasis, rotbasis)
+
+Create a rovibronic basis from a given set of electronic, vibrational and rotational bases.
+"""
+struct RovibronicBasis <: AbstractBasis
+    quanta::RovibronicQuanta
 end
 
 function RovibronicBasis(elebasis, vibbasis, rotbasis)
@@ -163,12 +133,14 @@ function RovibronicBasis(elebasis, vibbasis, rotbasis)
     for ele in elebasis.quanta
         for vib in vibbasis.quanta
             for rot in rotbasis.quanta
-                ele.omega != rot.omega && continue
-                push!(quanta, (jay=rot.jay, omega=rot.omega, ele.lambda, ele.ess, ele.sigma, vib.vee))
+                ele.lambda + ele.sigma != rot.omega && continue
+                push!(quanta, (
+                    jay=rot.jay, omega=rot.omega, 
+                    lambda=ele.lambda, ess=ele.ess, sigma=ele.sigma, 
+                    vee=vib.vee
+                    ))
             end
         end
     end
     return RovibronicBasis(quanta)
-end
-
 end

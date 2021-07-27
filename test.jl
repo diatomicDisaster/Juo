@@ -1,11 +1,16 @@
 include("juo.jl")
 
-coupl = Juo.UniformCoupling([1,2,3],[1,2,3])
-println(coupl.coupling_quanta)
+diat = Juo.Diatom("O", "O")
+dr = .05
+rs = collect(1:dr:10)
+morse_pot = Juo.Potentials.morse.(rs)
+poten = Juo.UniformPotential(rs, morse_pot)
+coupl_quanta = (lambdaf=0, essf=1, sigmaf=0, lambdai=0, essi=1, sigmai=1)
+quad_coupl = Juo.UniformCoupling(rs, 0.1.*rs .- 5, coupl_quanta)
 
-# x = collect(1.:1.:10.)
-# y = x .^2
-# o2 = Juo.Diatom(16.0, 16.0)
-# pot = Juo.UniformPotential(x, y)
-# o2(pot)
-# println(o2)
+elebasis = Juo.EleBasis(1, 0, true, false)
+vibbasis = Juo.VibBasis(diat.mu, dr, poten; nvee=5)
+rotbasis = Juo.RotBasis(0.0, elebasis)
+rovibronicbasis = Juo.RovibronicBasis(elebasis, vibbasis, rotbasis)
+
+println("Done.")
