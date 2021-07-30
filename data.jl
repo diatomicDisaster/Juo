@@ -1,6 +1,7 @@
 const CouplQuanta = NamedTuple{(:lambdaf, :essf, :sigmaf, :lambdai, :essi, :sigmai), Tuple{Float64, Float64, Float64, Float64, Float64, Float64}}
-const EleQuanta = NamedTuple{(:lambdaf, :essf, :sigmaf), Tuple{Float64, Float64, Float64}}
+const EleQuanta = NamedTuple{(:lambda, :ess, :sigma), Tuple{Float64, Float64, Float64}}
 const RovibronicQuanta = Vector{NamedTuple{(:jay, :omega, :lambda, :ess, :sigma, :vee), Tuple{Float64, Float64, Float64, Float64, Float64, Int64}}}
+AbstractQuanta = Union{CouplQuanta, EleQuanta, RovibronicQuanta}
 
 atommass = Dict(
     "H"  => 1.00782503223,

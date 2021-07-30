@@ -4,7 +4,6 @@ abstract type AbstractVibGrid <: AbstractGrid end
 abstract type AbstractValGrid <: AbstractGrid end
 abstract type AbstractCoupling{T<:Number} <: AbstractValGrid end
 abstract type AbstractPotential{T<:Number} <: AbstractValGrid end
-
 """
     UniformVibGrid <: AbstractVibGrid
 
@@ -43,7 +42,7 @@ struct UniformCoupling{T} <: AbstractCoupling{T}
     nodes::Vector{T}
     values::Vector{T}
     quanta::CouplQuanta
-    function UniformCoupling(nodes::Vector{T}, values::Vector{T}, quanta::CouplQuanta) where {T<:Number}
+    function UniformCoupling(nodes::Vector{T}, values::Vector{T}, quanta::NamedTuple{(:lambdaf, :essf, :sigmaf, :lambdai, :essi, :sigmai), Tuple{V, V, V, V, V, V}}) where {T,V<:Number}
         length(nodes) != length(values) && throw(ArgumentError("Must have same number of nodes and values"))
         new{T}(nodes, values, quanta)
     end

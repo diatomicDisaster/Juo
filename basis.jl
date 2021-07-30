@@ -52,8 +52,9 @@ julia> EleBasis(0, 0, true, false)
 ````
 """
 struct EleBasis <: AbstractBasis
-    quanta::Vector{NamedTuple{(:lambda, :ess, :sigma), Tuple{Float64, Float64, Float64}}}
-    multiplicity::Int64
+    quanta::Vector{EleQuanta}
+    ess::Int64
+    abslambda::Float64
     term::String
 end
 
@@ -61,17 +62,16 @@ end
 
 function EleBasis(ess, lambda, gerade::Bool)
     lambda == 0 && throw(ArgumentError("± symmetry (`symmetric = true` or `false`) is required for ``Σ``` electronic states.")) 
+    #construct term symbol
+    gu = gerade ? "g" : "u"
     multi = round(Int, 2*ess + 1)
-    quanta = []
+    term = string(multi, lambda_to_char(lambda), gu)quanta = []
     for lam in (lambda==0. ? [lambda] : [-abs(lambda), abs(lambda)])
         for sigma = -ess:ess
             push!(quanta, (lambda=lam, ess=ess, sigma=sigma))
         end
     end
-    #construct term symbol
-    gu = gerade ? "g" : "u"
-    term = string(multi, lambda_to_char(lambda), gu)
-    return EleBasis(quanta, multi, term)
+    return EleBasis(quanta, ess, abs(lambda), term)
 end
 
 function EleBasis(ess, lambda, gerade::Bool, symmetric::Bool)
@@ -80,18 +80,18 @@ function EleBasis(ess, lambda, gerade::Bool, symmetric::Bool)
         @warn "± symmetry not required for ``Λ > 0`` electronic states"
         return EleBasis(ess, lambda, gerade)
     else
+        #construct term symbol
+        gu = gerade ? "g" : "u"
+        pm = symmetric ? "+" : "-"
         multi = round(Int, 2*ess + 1)
+        term = string(multi, lambda_to_char(lambda), gu, pm)
         quanta = []
         for lam in (lambda==0. ? [lambda] : [-abs(lambda), abs(lambda)])
             for sigma = -ess:ess
                 push!(quanta, (lambda=lam, ess=ess, sigma=sigma))
             end
         end
-        #construct term symbol
-        gu = gerade ? "g" : "u"
-        pm = symmetric ? "+" : "-"
-        term = string(multi, lambda_to_char(lambda), gu, pm)
-        return EleBasis(quanta, multi, term)
+        return EleBasis(quanta, ess, abs(lambda), term)
     end
 end
 
@@ -107,9 +107,8 @@ end
 
 function RotBasis(jay, elebasis)
     quanta = []
-    for qnums in elebasis.quanta
-        (lambda, ess, sigma) = qnums
-        omega = lambda + sigma
+    range = elebasis.abslambda + (elebasis.multiplicity - 1)/2
+    for omega = -range:range
         if abs(omega) > jay
             continue
         else
@@ -126,6 +125,9 @@ Create a rovibronic basis from a given set of electronic, vibrational and rotati
 """
 struct RovibronicBasis <: AbstractBasis
     quanta::RovibronicQuanta
+    elebasis::EleBasis
+    vibbasis::VibBasis
+    rotbasis::RotBasis
 end
 
 function RovibronicBasis(elebasis, vibbasis, rotbasis)
@@ -143,4 +145,56 @@ function RovibronicBasis(elebasis, vibbasis, rotbasis)
         end
     end
     return RovibronicBasis(quanta)
+end
+
+function vibmatrix(vibvecs::Matrix, coupling::Vector, dr::Float64)
+    mat = Matrix{Float64}(undef, size(vibvecs, 2), size(vibvecs, 2))
+    for (i, veci) in enumerate(eachcol(vibvecs))
+        pre_vec = coupling .* veci
+        for (f, vecf) in enumerate(eachcol(vibvecs))
+            mat[f, i] = dr * vecf⋅pre_vec
+        end
+    end
+    return Hermitian(mat)
+end
+
+vib_matrix(vibbasis::VibBasis, coupling::AbstractCoupling, dr::Float64) = 
+    vib_matrix(vibbasis.eigen.vectors, coupling.values, dr)
+
+@inline couplhasstate(state::EleQuanta, coupl::CouplQuanta, fi::Char) =
+    all(map(k->getindex(state, k)==getindex(coupl, Symbol(string(k, fi))), keys(state)))
+
+function hamiltonian(elebasis::EleBasis, coupling::AbstractCoupling)
+    ele_hamiltonian = zeros(length(elebasis), length(elebasis))
+    f = findall(e->couplhasstate(e, coupling.quanta, 'f'), elebasis.quanta)
+    i = findall(e->couplhasstate(e, coupling.quanta, 'i'), elebasis.quanta)
+    if !(length(f) == 1 && length(i) == 1)
+        throw(DomainError("wrong number of (f, i) states matching coupling quanta, (expected (1, 1), got ($(length(f)), $(length(i))))"))
+    end
+    electrontic_matrix[f[1], i[1]] = 1.0
+    return ele_hamiltonian
+end
+
+function hamiltonian(elebasis::EleBasis, vibbasis::VibBasis, coupls::AbstractCoupling, dr)
+    ndimen = size(elebasis) * size(vibbasis)
+    vibronic_hamiltonian = zeros(ndimen, ndimen)
+    for coupl in coupls
+        vibronic_hamiltonian += 
+            kron(ele_hamiltonian(elebasis, coupl), vib_hamiltonian(vibbasis, coupl, dr))
+    end
+    vibronic_hamiltonian += kron(Diagonal(ones(size(elebasis))), Diagonal(vibbasis.eigen.values))
+    return vibronic_hamiltonian
+end
+
+function hamiltonian(rovibronicbasis::RovibronicBasis)
+    hamiltonian = zeros(length(rovibronicbasis), length(rovibronicbasis))
+    for (i, qi) in enumerate(rotbasis.quanta)
+        for (f, qf) in enumerate(rotbasis.quanta)
+            if qf.omega - qi.omega == 0
+                rot_hamiltonian[i, f] = qi.omega + qi.jay*(qi.jay + 1)
+            elseif abs(qf.omega - qi.omega) == 1
+                rot_hamiltonian[i, f] = (qi.jay*(qi.jay + 1) - qi.omega*qf.omega)
+            end
+        end
+    end
 end
